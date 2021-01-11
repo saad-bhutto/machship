@@ -1,18 +1,29 @@
-# Very short description of the package
+# WIP Machship-SDK
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/technauts/machship.svg?style=flat-square)](https://packagist.org/packages/technauts/machship)
-[![Build Status](https://img.shields.io/travis/technauts/machship/master.svg?style=flat-square)](https://travis-ci.org/technauts/machship)
-[![Quality Score](https://img.shields.io/scrutinizer/g/technauts/machship.svg?style=flat-square)](https://scrutinizer-ci.com/g/technauts/machship)
-[![Total Downloads](https://img.shields.io/packagist/dt/technauts/machship.svg?style=flat-square)](https://packagist.org/packages/technauts/machship)
+An object-oriented approach towards using the Shopify API.
 
-This is where your description should go. Try and limit it to a paragraph or two, and maybe throw in a mention of what PSRs you support to avoid any confusion with users and contributors.
+
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/saad-bhutto/machship.svg?style=flat-square)](https://packagist.org/packages/saad-bhutto/machship)
+[![Total Downloads](https://img.shields.io/packagist/dt/saad-bhutto/machship.svg?style=flat-square)](https://packagist.org/packages/saad-bhutto/machship)
+
+> Offical Documentation: [click here](https://demo.machship.com/swagger/index.html)
+
+
+## Supported Objects / Endpoints:
+
+* [Companies](https://help.shopify.com/en/api/reference/online-store/asset)
+* [Warehouses](https://help.shopify.com/en/api/reference/customers/customer)
+* [CarrierServices](https://help.shopify.com/en/api/reference/shopify_payments/dispute)
+* [Fulfillment](https://help.shopify.com/en/api/reference/shipping-and-fulfillment/fulfillment)
+* [Consignments](https://help.shopify.com/en/api/reference/shipping-and-fulfillment/fulfillment)
+* [Product](https://help.shopify.com/api/reference/products)
 
 ## Installation
 
 You can install the package via composer:
 
 ```bash
-composer require technauts/machship
+composer require saad-bhutto/machship
 ```
 
 ## Usage
@@ -22,6 +33,8 @@ composer require technauts/machship
 ```
 
 ### Testing
+
+WIP WIP WIP WIP WIP WIP WIP WIP 
 
 ``` bash
 composer test
@@ -37,11 +50,11 @@ Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
 
 ### Security
 
-If you discover any security related issues, please email technauts@ymail.com instead of using the issue tracker.
+If you discover any security related issues, please email saadbhutto@ymail.com instead of using the issue tracker.
 
 ## Credits
 
-- [Saad Bhutto](https://github.com/technauts)
+- [Saad Bhutto](https://github.com/saad-bhutto)
 - [All Contributors](../../contributors)
 
 ## License
