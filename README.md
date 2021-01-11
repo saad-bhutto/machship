@@ -1,6 +1,6 @@
 # WIP Machship-SDK
 
-An object-oriented approach towards using the Shopify API.
+An object-oriented approach towards using the Machship API.
 
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/saad-bhutto/machship.svg?style=flat-square)](https://packagist.org/packages/saad-bhutto/machship)
