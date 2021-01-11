@@ -11,12 +11,12 @@ An object-oriented approach towards using the Shopify API.
 
 ## Supported Objects / Endpoints:
 
-* [Companies](https://help.shopify.com/en/api/reference/online-store/asset)
-* [Warehouses](https://help.shopify.com/en/api/reference/customers/customer)
-* [CarrierServices](https://help.shopify.com/en/api/reference/shopify_payments/dispute)
-* [Fulfillment](https://help.shopify.com/en/api/reference/shipping-and-fulfillment/fulfillment)
-* [Consignments](https://help.shopify.com/en/api/reference/shipping-and-fulfillment/fulfillment)
-* [Product](https://help.shopify.com/api/reference/products)
+* [Companies](#)
+* [Warehouses](#)
+* [CarrierServices](#)
+* [Fulfillment](#)
+* [Consignments](#)
+* [Product](#)
 
 ## Installation
 
