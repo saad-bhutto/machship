@@ -1,0 +1,45 @@
+{
+    "name": "technauts/machship",
+    "description": "",
+    "version": "0.1.0",
+    "keywords": [
+        "technauts",
+        "machship"
+    ],
+    "homepage": "https://github.com/technauts/machship",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Saad Bhutto",
+            "email": "saadbhutto@ymail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^7.3",
+        "guzzlehttp/guzzle": "^6.2",
+        "nesbot/carbon": "^1.26.3 || ^2.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Technauts\\Machship\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Technauts\\Machship\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage"
+
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
