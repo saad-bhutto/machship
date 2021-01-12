@@ -46,7 +46,7 @@ abstract class Endpoint
         if (in_array($property, static::$endpoints)) {
             $client = $this->client;
 
-            if (empty($client->ids)) {
+            if (! isset($client->ids) || count($client->ids) == 0) {
                 throw new InvalidOrMissingEndpointException('Calling   from ' . $this->client->api . ' requires an id');
             }
 

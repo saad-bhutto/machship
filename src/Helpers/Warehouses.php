@@ -22,7 +22,7 @@ class Warehouses extends Endpoint
             case 'permanentpickups':
                 $client = $this->client;
 
-                if (!isset($client->ids)) {
+                if (! isset($client->ids)) {
                     throw new InvalidOrMissingEndpointException(
                         'The orders endpoint on customers requires a customer ID. e.g. $api->warehouses(123)->permanentpickups->get()'
                     );

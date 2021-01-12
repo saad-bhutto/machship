@@ -2,7 +2,6 @@
 
 namespace Technauts\Machship\Exceptions;
 
-
 /**
  * Class ModelNotFoundException.
  */

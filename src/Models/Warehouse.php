@@ -8,7 +8,7 @@ namespace Technauts\Machship\Models;
 class Warehouse extends AbstractModel
 {
     /** @var string $resource_name */
-    public static $resource_name = 'warehouses';
+    public static $resource_name = 'warehouse';
 
     /** @var string $resource_name_many */
     public static $resource_name_many = 'warehouses';

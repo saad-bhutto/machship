@@ -3,9 +3,9 @@
 namespace Technauts\Machship\Helpers;
 
 /**
- * Class CarrierServices for a Warehouses.
+ * Endpoint Class for Products.
  */
-class Carrierservices extends Endpoint
+class Products extends Endpoint
 {
     /**
      * @param string $endpoint

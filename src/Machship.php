@@ -3,7 +3,6 @@
 namespace Technauts\Machship;
 
 use BadMethodCallException;
-use Exception;
 use Technauts\Machship\Exceptions\InvalidOrMissingEndpointException;
 use Technauts\Machship\Exceptions\ModelNotFoundException;
 use Technauts\Machship\Helpers\Endpoint;
@@ -14,7 +13,9 @@ use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\ResponseInterface;
+use Technauts\Machship\Helpers\Products;
 use Technauts\Machship\Models\CarrierService;
+use Technauts\Machship\Models\Consignments;
 use Technauts\Machship\Models\Warehouse;
 
 /**
@@ -26,12 +27,8 @@ use Technauts\Machship\Models\Warehouse;
  */
 class Machship extends Client
 {
-    public const SCOPE_COMPANY = 'company';
-
-    /** @var array $scopes */
-    public static $scopes = [
-        self::SCOPE_COMPANY,
-    ];
+    public const DEFAULT_PAGE_NUMBER = 1;
+    public const DEFAULT_PAGE_SIZE = 50;
 
     /**
      * The current endpoint for the API. The default endpoint is /orders/.
@@ -39,6 +36,7 @@ class Machship extends Client
      * @var string
      */
     public $api = 'authenticate/ping';
+
     /**
      * The current endpoint for the API. The default endpoint is /orders/.
      *
@@ -51,10 +49,16 @@ class Machship extends Client
      *
      * @var array $cursors
      */
-    public $cursors = [];
+    public $cursors = [
+        'startIndex' => 1,
+        'retrieveSize' => 27,
+    ];
 
     /** @var array $ids */
     public $ids = [];
+
+    /** @var int $type */
+    public $endpoint_type = 0;
 
     /**
      * Methods / Params queued for API call.
@@ -77,7 +81,7 @@ class Machship extends Client
      *
      * @var array
      */
-    protected static $endpoints = [
+    protected static $collections_endpoints = [
         'companies' => 'companies/getAll',
         'warehouses' => 'companyLocations/getAll',
         'permanentpickups' => 'companyLocations/getPermanentPickupsForCompanyLocation',
@@ -91,6 +95,14 @@ class Machship extends Client
      */
     protected static $findable_endpoints = [
         'warehouses' => 'companyLocations/get?id=%s',
+        'products' => 'api/companyItems/get?id=%s',
+    ];
+
+    /** @var array $cursored_enpoints */
+    protected static $cursored_enpoints = [
+        'warehouses' => 'companyLocations/GetAll',
+        'products' => 'api/companyItems/GetAll',
+        'consignments' => 'consignments/getAll',
     ];
 
     /** @var array $resource_models */
@@ -98,12 +110,10 @@ class Machship extends Client
         'companies' => Company::class,
         'warehouses' => Warehouse::class,
         'carrierservices' => CarrierService::class,
+        'products' => Products::class,
+        'consignments' => Consignments::class,
     ];
 
-    /** @var array $cursored_enpoints */
-    protected static $cursored_enpoints = [
-        'warehouses',
-    ];
 
     /**
      * Machship constructor.
@@ -113,14 +123,13 @@ class Machship extends Client
      */
     public function __construct($root, $token, $base = null)
     {
-        $root = Util::normalizeDomain($root);
-        $this->root = $root;
-        $base_uri = "https://{$root}";
+        $this->root = Util::normalizeDomain($root);
+        $base_uri = "https://{$this->root}";
 
         $this->setBase($base);
         parent::__construct([
             'base_uri' => $base_uri,
-            'headers'  => [
+            'headers' => [
                 'token' => $token,
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json; charset=utf-8;',
@@ -152,12 +161,11 @@ class Machship extends Client
      */
     public function get($query = [], $append = '')
     {
-        $api = $this->api;
-
-        // Don't allow use of page query on cursored endpoints
-        if (isset($query['page']) && in_array($api, static::$cursored_enpoints, true)) {
-            throw new ClientException('Use of deprecated query parameter. Use cursor navigation instead.', 1);
-            return [];
+        if (isset(static::$cursored_enpoints[$this->api])) {
+            $query = [
+                'startIndex' => $this->cursors['startIndex'],
+                'retrieveSize' => $this->cursors['retrieveSize'],
+            ];
         }
 
         // Do request and store response in variable
@@ -167,19 +175,20 @@ class Machship extends Client
             $options = ['query' => $query]
         );
 
+        $data = json_decode($response->getBody()->getContents(), true);
+
         // If response has Link header, parse it and set the cursors
         if ($response->hasHeader('Link')) {
             $this->cursors = static::parseLinkHeader($response->getHeader('Link')[0]);
         }
         // If we don't have Link on a cursored endpoint then it was the only page. Set cursors to null to avoid breaking next.
-        elseif (in_array($api, self::$cursored_enpoints, true)) {
+        elseif (in_array($this->api, self::$cursored_enpoints, true)) {
             $this->cursors = [
                 'startIndex' => null,
-                'retrievalSize' => null,
+                'retrieveSize' => null,
             ];
         }
 
-        $data = json_decode($response->getBody()->getContents(), true);
 
         if (isset($data['errors']) && ! is_null($data['errors'])) {
             return $data['errors'];
@@ -200,20 +209,21 @@ class Machship extends Client
     public function next($query = [], $append = '')
     {
         // Only allow use of next on cursored endpoints
-        if (! in_array($this->api, static::$cursored_enpoints, true)) {
+        if (! isset(static::$cursored_enpoints[$this->api])) {
             // Util::isLaravel() && \Log::warning('vendor:dan:shopify:get', ['Use of cursored method on non-cursored endpoint.']);
-
             return [];
         }
 
         // If cursors haven't been set, then just call get normally.
         if (count($this->cursors) == 0) {
-            return $this->get($query, $append);
+            $data = $this->get($query, $append) ;
+            $this->cursors['startIndex'] += 1;
+            return $data ;
         }
 
         // Only limit key is allowed to exist with cursor based navigation
         foreach (array_keys($query) as $key) {
-            if ($key !== 'retrievalSize') {
+            if ($key !== 'retrieveSize') {
                 // Util::isLaravel() && \Log::warning('vendor:dan:shopify:get', ['Limit param is not allowed with cursored queries.']);
                 return [];
             }
@@ -225,9 +235,10 @@ class Machship extends Client
         }
 
         // If cursors have been set and next has been set, then return get with next.
-        $query['startIndex'] = $this->cursors['startIndex' + 1];
-
-        return $this->get($query, $append);
+        $query['startIndex'] = $this->cursors['startIndex'] + 1;
+        $data = $this->get($query, $append) ;
+        $this->cursors['startIndex'] += 1;
+        return  $data;
     }
 
     /**
@@ -376,6 +387,9 @@ class Machship extends Client
     public function findById($id)
     {
         try {
+            if (!isset(static::$findable_endpoints[$this->api])) {
+                return $this->find($id);
+            }
             $data = $this->get(['id' => $id], $args = $id);
             if (isset(static::$resource_models[$this->api])) {
                 $class = static::$resource_models[$this->api];
@@ -384,7 +398,7 @@ class Machship extends Client
                     $data = $data[$class::$resource_name];
                 }
 
-                return count($data) === 0 ? null : new $class($data);
+                return (count($data) === 0 || is_null($data['object']) ) ? null : new $class($data);
             }
         } catch (ClientException $clientException) {
             if ($clientException->getResponse()->getStatusCode() === 404) {
@@ -413,11 +427,12 @@ class Machship extends Client
      */
     public function findMany($ids)
     {
-        if (is_array($ids)) {
-            $ids = implode(',', array_filter($ids));
-        }
+        // TODO implemention required
+        // if (is_array($ids)) {
+        //     $ids = implode(',', array_filter($ids));
+        // }
 
-        return $this->all(compact('ids'));
+        // return $this->all(compact('ids'));
     }
 
     /**
@@ -465,7 +480,7 @@ class Machship extends Client
     public function save(AbstractModel $model)
     {
         // Filtered by uri() if falsy
-        $id = $model->getAttribute($model::$identifier);
+        // $id = $model->getAttribute($model::$identifier);
 
         $this->api = $model::$resource_name_many;
 
@@ -518,11 +533,9 @@ class Machship extends Client
     {
         $data = $this->get($query, 'count');
 
-        $data = count($data) === 1
+        return count($data) === 1
             ? array_values($data)[0]
             : $data;
-
-        return $data;
     }
 
     /**
@@ -557,7 +570,7 @@ class Machship extends Client
     public function setBase($base = null)
     {
         if (is_null($base)) {
-            $this->base =   '';
+            $this->base = '';
             return $this;
         }
 
@@ -580,49 +593,51 @@ class Machship extends Client
     private static function makeUri($api, $ids = [], $queue = [], $append = '', $base = 'apiv2')
     {
 
-        // $base = $base ?: '';
+        //0= V2 Endpoint
+        //1= Cursored Endpoint
+        //2= Findable Endpoint
+        //3= V1 Endpoint
+        if (isset(static::$collections_endpoints[$api])) {
+            $api_endpoint = static::$collections_endpoints[$api];
+        } elseif (isset(static::$cursored_enpoints[$api])) {
+            $api_endpoint = static::$cursored_enpoints[$api] ;
+        }
 
-        /* if (Util::isLaravel() && $base ==== 'admin') {
-            $base = config('shopify.api_base', 'admin');
-        } */
-        $api_endpoint = static::$endpoints[$api];
+        //V1 Endpoint
         if (str_starts_with($api_endpoint, 'api')) {
             // forcefully maupulateing V1 Endpoint Urls
-            $base =  'api';
+            $base = 'api';
             $api_endpoint = str_replace('api/', '', $api_endpoint);
         }
 
-        if ($append !== '') {
-            $api_endpoint = static::$findable_endpoints[$api];
-        }
-
-        if ($append) {
-            return "/{$base}/".str_replace('%s', $append, $api_endpoint);
-        }
-
-        // Is it an entity endpoint?
-        if (substr_count($api_endpoint, '%') === count($ids)) {
+        //Findable Endpoint
+        // if ($append !== '') {
+        //     $api_endpoint = static::$findable_endpoints[$api];
+        //     return "/{$base}/".str_replace('%s', $append, $api_endpoint);
+        // }
+        $count = substr_count($api_endpoint, '%');
+        $endpoint = $api_endpoint ;
+        if ($count === count($ids)) {
+            // Is it an entity endpoint?
             $endpoint = vsprintf($api_endpoint, $ids);
-        // Is it a collection endpoint?
-        } elseif (substr_count($api_endpoint, '%') && $append !== '') {
+
+        } elseif ($count && $append !== '') {
+            // Is it a findable endpoint?
             $endpoint = vsprintf($api_endpoint, [$append]);
-        // Is it a collection endpoint?
-        } elseif (substr_count($api_endpoint, '%') === (count($ids) + 1)) {
+
+        } elseif ($count === (count($ids) + 1)) {
+            // Is it a collection endpoint?
             $id = array_shift($queue);
             $endpoint = vsprintf($api_endpoint, [$id['id']]);
-        // Is it just plain wrong?
         } else {
-            $msg = sprintf(
-                'You did not specify enough ids for endpoint `%s`, ids(%s).',
-                $api_endpoint,
-                implode($ids)
-            );
-
-            throw new InvalidOrMissingEndpointException($msg);
+            // Is it just plain wrong?
+            // $msg = sprintf( 'You did not specify enough ids for endpoint `%s`, ids(%s).', $api_endpoint, implode($ids));
+            // throw new InvalidOrMissingEndpointException($msg);
         }
 
         $endpoint = "/{$base}/{$endpoint}";
         $endpoint = str_replace('//', '/', $endpoint);
+        $endpoint = ($append !== '') ? Util::appendQueryStringToURL($endpoint, $append) : $endpoint;
 
         return $endpoint;
     }
@@ -684,9 +699,12 @@ class Machship extends Client
      */
     public function __get($endpoint)
     {
-        if (array_key_exists($endpoint, static::$endpoints)) {
+        if (array_key_exists($endpoint, static::$collections_endpoints)) {
+            $this->api = $endpoint;
+        } else if (array_key_exists($endpoint, static::$cursored_enpoints)) {
             $this->api = $endpoint;
         }
+
         $className = "Technauts\Machship\\Helpers\\".Util::studly($endpoint);
         if (class_exists($className)) {
             return new $className($this);
@@ -708,9 +726,8 @@ class Machship extends Client
      */
     public function __call($method, $parameters)
     {
-        if (array_key_exists($method, static::$endpoints)) {
+        if (array_key_exists($method, static::$collections_endpoints) || array_key_exists($method, static::$cursored_enpoints)) {
             $this->ids = $parameters;
-
             return $this->__get($method);
         }
         $msg = sprintf('Method %s does not exist.', $method);
@@ -741,9 +758,6 @@ class Machship extends Client
      */
     public function request($method, $uri = '', array $options = [])
     {
-        // if (Util::isLaravel() && config('shopify.options.log_api_request_data')) {
-        //     \Log::info('vendor:dan:shopify:api', compact('method', 'uri') + $options);
-        // }
         $this->last_response = $response = parent::request($method, $uri, $options);
         $this->last_headers = $response->getHeaders();
 
@@ -762,9 +776,9 @@ class Machship extends Client
         } catch (ClientException $clientException) {
             if ($clientException->getResponse()->getStatusCode() === 429) {
                 return $this->rateLimited($request);
-            } else {
-                throw $clientException;
             }
+
+            throw $clientException;
         }
     }
 
