@@ -14,7 +14,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\ResponseInterface;
 use Technauts\Machship\Helpers\Products;
-use Technauts\Machship\Models\CarrierService;
+use Technauts\Machship\Models\Carrierservice;
 use Technauts\Machship\Models\Consignments;
 use Technauts\Machship\Models\Warehouse;
 
@@ -109,7 +109,7 @@ class Machship extends Client
     protected static $resource_models = [
         'companies' => Company::class,
         'warehouses' => Warehouse::class,
-        'carrierservices' => CarrierService::class,
+        'carrierservices' => Carrierservice::class,
         'products' => Products::class,
         'consignments' => Consignments::class,
     ];
@@ -143,7 +143,7 @@ class Machship extends Client
      *
      * @return Machship
      */
-    public static function make($root, $token, $base = null)
+    public static function make($token, $root = 'https://live.machship.com/',  $base = 'apiv2')
     {
         return new static($root, $token, $base);
     }

@@ -5,7 +5,7 @@ namespace Technauts\Machship\Models;
 /**
  * Modal class for CarrierService
  */
-class CarrierService extends AbstractModel
+class Carrierservice extends AbstractModel
 {
     /** @var string $resource_name */
     public static $resource_name = 'carrierservice';
