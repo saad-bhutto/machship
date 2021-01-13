@@ -177,12 +177,8 @@ class Machship extends Client
 
         $data = json_decode($response->getBody()->getContents(), true);
 
-        // If response has Link header, parse it and set the cursors
-        if ($response->hasHeader('Link')) {
-            $this->cursors = static::parseLinkHeader($response->getHeader('Link')[0]);
-        }
         // If we don't have Link on a cursored endpoint then it was the only page. Set cursors to null to avoid breaking next.
-        elseif (in_array($this->api, self::$cursored_enpoints, true)) {
+        if (in_array($this->api, self::$cursored_enpoints, true)) {
             $this->cursors = [
                 'startIndex' => null,
                 'retrieveSize' => null,
@@ -254,7 +250,7 @@ class Machship extends Client
      */
     public function post($payload = [], $append = '')
     {
-        return $this->postOrPush('POST', $payload, $append);
+        return $this->postOrPut('POST', $payload, $append);
     }
 
     /**
@@ -270,7 +266,7 @@ class Machship extends Client
      */
     public function put($payload = [], $append = '')
     {
-        return $this->postOrPush('PUT', $payload, $append);
+        return $this->postOrPut('PUT', $payload, $append);
     }
 
     /**
@@ -283,7 +279,7 @@ class Machship extends Client
      *
      * @return mixed
      */
-    private function postOrPush($post_or_post, $payload = [], $append = '')
+    private function postOrPut($post_or_post, $payload = [], $append = '')
     {
         $payload = $this->normalizePayload($payload);
         $api = $this->api;
@@ -480,7 +476,7 @@ class Machship extends Client
     public function save(AbstractModel $model)
     {
         // Filtered by uri() if falsy
-        // $id = $model->getAttribute($model::$identifier);
+        $id = $model->getAttribute($model::$identifier);
 
         $this->api = $model::$resource_name_many;
 
@@ -610,11 +606,6 @@ class Machship extends Client
             $api_endpoint = str_replace('api/', '', $api_endpoint);
         }
 
-        //Findable Endpoint
-        // if ($append !== '') {
-        //     $api_endpoint = static::$findable_endpoints[$api];
-        //     return "/{$base}/".str_replace('%s', $append, $api_endpoint);
-        // }
         $count = substr_count($api_endpoint, '%');
         $endpoint = $api_endpoint ;
         if ($count === count($ids)) {
@@ -742,10 +733,10 @@ class Machship extends Client
      *
      * @return Helpers\Testing\MachshipMock
      */
-    // public static function fake($responseStack = [])
-    // {
-    //     return new Helpers\Testing\MachshipMock($responseStack);
-    // }
+    public static function fake($responseStack = [])
+    {
+           // TODO implemention required fro MachshipMock($responseStack);
+    }
 
     /**
      * Wrapper to the $client->request method.
@@ -762,24 +753,6 @@ class Machship extends Client
         $this->last_headers = $response->getHeaders();
 
         return $response;
-    }
-
-    /**
-     * @param callable $request
-     *
-     * @return array
-     */
-    public function rateLimited(callable $request)
-    {
-        try {
-            return $request($this);
-        } catch (ClientException $clientException) {
-            if ($clientException->getResponse()->getStatusCode() === 429) {
-                return $this->rateLimited($request);
-            }
-
-            throw $clientException;
-        }
     }
 
     /**
