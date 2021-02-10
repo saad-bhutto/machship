@@ -12,5 +12,4 @@ class Carrierservice extends AbstractModel
 
     /** @var string $resource_name_many */
     public static $resource_name_many = 'carrierservices';
-
 }

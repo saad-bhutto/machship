@@ -2,21 +2,24 @@
 
 namespace Technauts\Machship;
 
-use BadMethodCallException;
-use Technauts\Machship\Exceptions\InvalidOrMissingEndpointException;
-use Technauts\Machship\Exceptions\ModelNotFoundException;
-use Technauts\Machship\Helpers\Endpoint;
-use Technauts\Machship\Models\AbstractModel;
-use Technauts\Machship\Models\Company;
 use GuzzleHttp\Client;
+use BadMethodCallException;
+use Technauts\Machship\Models\Quote;
+use Technauts\Machship\Models\Route;
+use Psr\Http\Message\MessageInterface;
+use Technauts\Machship\Models\Company;
+use Technauts\Machship\Models\Product;
+use Psr\Http\Message\ResponseInterface;
+use Technauts\Machship\Models\Location;
+use Technauts\Machship\Helpers\Endpoint;
+use Technauts\Machship\Models\Warehouse;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\GuzzleException;
-use Psr\Http\Message\MessageInterface;
-use Psr\Http\Message\ResponseInterface;
-use Technauts\Machship\Helpers\Products;
-use Technauts\Machship\Models\Carrierservice;
 use Technauts\Machship\Models\Consignments;
-use Technauts\Machship\Models\Warehouse;
+use Technauts\Machship\Models\AbstractModel;
+use Technauts\Machship\Models\Carrierservice;
+use Technauts\Machship\Exceptions\ModelNotFoundException;
+use Technauts\Machship\Exceptions\InvalidOrMissingEndpointException;
 
 /**
  * Class Machship.
@@ -51,7 +54,7 @@ class Machship extends Client
      */
     public $cursors = [
         'startIndex' => 1,
-        'retrieveSize' => 27,
+        'retrieveSize' => 200,
     ];
 
     /** @var array $ids */
@@ -82,10 +85,17 @@ class Machship extends Client
      * @var array
      */
     protected static $collections_endpoints = [
+        'ping' => 'authenticate/ping',
         'companies' => 'companies/getAll',
         'warehouses' => 'companyLocations/getAll',
+        'locations' => 'locations/getAllLocations',
         'permanentpickups' => 'companyLocations/getPermanentPickupsForCompanyLocation',
         'carrierservices' => 'api/carriers/GetAccessibleCarriers',
+        'routes' => 'routes/returnroutes',
+        'consignments' => 'consignments/GetAll',
+        'quotes' => 'quotes/GetAll',
+        'products' => 'items/getAll',
+
     ];
 
     /**
@@ -95,14 +105,28 @@ class Machship extends Client
      */
     protected static $findable_endpoints = [
         'warehouses' => 'companyLocations/get?id=%s',
-        'products' => 'api/companyItems/get?id=%s',
+        'products' => 'items/get?id=%s',
+        'quotes' => 'quotes/getQuote?id=%s',
+        'consignments' => 'consignments/getConsignment?id=%s',
+        'consignmentnotes' => 'notes/getNotesForConsignment?id=%s',
+
+    ];
+
+    /**
+     * Our list of valid Machship findable endpoints.
+     *
+     * @var array
+     */
+    protected static $postable_endpoints = [
+        'routes' => 'routes/returnroutes',
+        'quotes' => 'quotes/createQuote',
     ];
 
     /** @var array $cursored_enpoints */
     protected static $cursored_enpoints = [
         'warehouses' => 'companyLocations/GetAll',
         'products' => 'api/companyItems/GetAll',
-        'consignments' => 'consignments/getAll',
+        'consignments' => 'consignments/GetAll',
     ];
 
     /** @var array $resource_models */
@@ -110,8 +134,11 @@ class Machship extends Client
         'companies' => Company::class,
         'warehouses' => Warehouse::class,
         'carrierservices' => Carrierservice::class,
-        'products' => Products::class,
+        'products' => Product::class,
         'consignments' => Consignments::class,
+        'quotes' => Quote::class,
+        'routes' => Route::class,
+        'locations' => Location::class,
     ];
 
 
@@ -143,11 +170,27 @@ class Machship extends Client
      *
      * @return Machship
      */
-    public static function make($token, $root = 'https://live.machship.com/',  $base = 'apiv2')
+    public static function make($token, $root = 'https://live.machship.com/', $base = 'apiv2')
     {
         return new static($root, $token, $base);
     }
 
+    /**
+     * Connect to the machship Api by sending a ping request.
+     *
+     * @return boolean
+     * @throws GuzzleException
+     *
+     */
+    public function ping()
+    {
+        $this->api = 'ping';
+
+        $response = $this->request("POST", $this->uri());
+        $data = json_decode($response->getBody()->getContents(), true);
+
+        return isset($data['object']) && $data['object'] === true;
+    }
     /**
      * Get a resource using the assigned endpoint ($this->endpoint).
      *
@@ -162,16 +205,23 @@ class Machship extends Client
     public function get($query = [], $append = '')
     {
         if (isset(static::$cursored_enpoints[$this->api])) {
-            $query = [
-                'startIndex' => $this->cursors['startIndex'],
-                'retrieveSize' => $this->cursors['retrieveSize'],
-            ];
+            $query['startIndex'] = $this->cursors['startIndex'];
+            $query['retrieveSize'] = $this->cursors['retrieveSize'];
+        }
+
+
+        $url = $this->uri($append);
+        if (parse_url($url, PHP_URL_QUERY)) {
+            $queryParam = parse_url($url, PHP_URL_QUERY);
+            if (substr($queryParam, 0, 3) === "id=") {
+                $query['id'] = explode("=", $queryParam)[1];
+            }
         }
 
         // Do request and store response in variable
         $response = $this->request(
             $method = 'GET',
-            $uri = $this->uri($append),
+            $uri =  $url,
             $options = ['query' => $query]
         );
 
@@ -186,7 +236,7 @@ class Machship extends Client
         }
 
 
-        if (isset($data['errors']) && ! is_null($data['errors'])) {
+        if (isset($data['errors']) && !is_null($data['errors'])) {
             return $data['errors'];
         }
 
@@ -205,16 +255,16 @@ class Machship extends Client
     public function next($query = [], $append = '')
     {
         // Only allow use of next on cursored endpoints
-        if (! isset(static::$cursored_enpoints[$this->api])) {
+        if (!isset(static::$cursored_enpoints[$this->api])) {
             // Util::isLaravel() && \Log::warning('vendor:dan:shopify:get', ['Use of cursored method on non-cursored endpoint.']);
             return [];
         }
 
         // If cursors haven't been set, then just call get normally.
         if (count($this->cursors) == 0) {
-            $data = $this->get($query, $append) ;
-            $this->cursors['startIndex'] += 1;
-            return $data ;
+            $data = $this->get($query, $append);
+            $this->cursors['startIndex'] += 200;
+            return $data;
         }
 
         // Only limit key is allowed to exist with cursor based navigation
@@ -226,14 +276,14 @@ class Machship extends Client
         }
 
         // If cursors have been set and next hasn't been set, then return null.
-        if (empty($this->cursors['startIndex'] + 1)) {
+        if (empty($this->cursors['startIndex'] + 200)) {
             return [];
         }
 
         // If cursors have been set and next has been set, then return get with next.
-        $query['startIndex'] = $this->cursors['startIndex'] + 1;
-        $data = $this->get($query, $append) ;
-        $this->cursors['startIndex'] += 1;
+        $query['startIndex'] = $this->cursors['startIndex'] + 200;
+        $data = $this->get($query, $append);
+        $this->cursors['startIndex'] += 200;
         return  $data;
     }
 
@@ -281,9 +331,9 @@ class Machship extends Client
      */
     private function postOrPut($post_or_post, $payload = [], $append = '')
     {
-        $payload = $this->normalizePayload($payload);
         $api = $this->api;
-        $uri = $this->uri($append);
+
+        $uri = $this->uri($append, $post_or_post);
 
         $json = $payload instanceof AbstractModel
             ? $payload->getPayload()
@@ -393,8 +443,7 @@ class Machship extends Client
                 if (isset($data[$class::$resource_name])) {
                     $data = $data[$class::$resource_name];
                 }
-
-                return (count($data) === 0 || is_null($data['object']) ) ? null : new $class($data);
+                return (count($data) === 0 || is_null($data)) ? null : new $class($data);
             }
         } catch (ClientException $clientException) {
             if ($clientException->getResponse()->getStatusCode() === 404) {
@@ -541,9 +590,10 @@ class Machship extends Client
      *
      * @return string
      */
-    public function uri($append = '')
+    public function uri($append = '', $method = null)
     {
-        $uri = static::makeUri($this->api, $this->ids, $this->queue, $append, $this->base);
+        $uri = static::makeUri($this->api, $this->ids, $this->queue, $append, $this->base, $method);
+
         $this->ids = [];
         $this->queue = [];
 
@@ -586,17 +636,45 @@ class Machship extends Client
      *
      * @return string
      */
-    private static function makeUri($api, $ids = [], $queue = [], $append = '', $base = 'apiv2')
+    private static function makeUri($api, $ids = [], $queue = [], $append = '', $base = 'apiv2', $method = null)
     {
 
+        $mode = "collection";
+        $api_endpoint = "";
         //0= V2 Endpoint
         //1= Cursored Endpoint
         //2= Findable Endpoint
         //3= V1 Endpoint
-        if (isset(static::$collections_endpoints[$api])) {
+        if (!is_null($method) && $method == 'POST') {
+            $api_endpoint = static::$postable_endpoints[$api];
+            $mode = "post";
+        } elseif (isset(static::$collections_endpoints[$api])) {
             $api_endpoint = static::$collections_endpoints[$api];
+            $mode = "collection";
         } elseif (isset(static::$cursored_enpoints[$api])) {
-            $api_endpoint = static::$cursored_enpoints[$api] ;
+            $api_endpoint = static::$cursored_enpoints[$api];
+            $mode = "cursor";
+        }
+
+        if (isset(static::$findable_endpoints[$api])) {
+
+            if (count($ids) == 1) {
+                // Is it a findable endpoint?
+                $api_endpoint = static::$findable_endpoints[$api];
+                $mode = "find";
+            }
+
+            if ($append !== '' && is_int($append)) {
+                // Is it a findable endpoint?
+                $api_endpoint = static::$findable_endpoints[$api];
+                $mode = "find";
+            }
+
+            if (count($queue) > 0 && in_array('id', array_keys($queue))) {
+                // Is it a nested findable endpoint?
+                $api_endpoint = static::$findable_endpoints[$api];
+                $mode = "find";
+            }
         }
 
         //V1 Endpoint
@@ -607,15 +685,13 @@ class Machship extends Client
         }
 
         $count = substr_count($api_endpoint, '%');
-        $endpoint = $api_endpoint ;
+        $endpoint = $api_endpoint;
         if ($count === count($ids)) {
             // Is it an entity endpoint?
             $endpoint = vsprintf($api_endpoint, $ids);
-
         } elseif ($count && $append !== '') {
             // Is it a findable endpoint?
             $endpoint = vsprintf($api_endpoint, [$append]);
-
         } elseif ($count === (count($ids) + 1)) {
             // Is it a collection endpoint?
             $id = array_shift($queue);
@@ -628,7 +704,7 @@ class Machship extends Client
 
         $endpoint = "/{$base}/{$endpoint}";
         $endpoint = str_replace('//', '/', $endpoint);
-        $endpoint = ($append !== '') ? Util::appendQueryStringToURL($endpoint, $append) : $endpoint;
+        $endpoint = ($append !== '' && $mode == "cursor") ? Util::appendQueryStringToURL($endpoint, $append) : $endpoint;
 
         return $endpoint;
     }
@@ -644,7 +720,7 @@ class Machship extends Client
             return $payload;
         }
 
-        if (! isset($payload['id'])) {
+        if (!isset($payload['id'])) {
             $count = count($args = array_filter($this->ids));
             if ($count) {
                 $last = $args[$count - 1];
@@ -675,6 +751,9 @@ class Machship extends Client
     private static function apiEntityProperty($api)
     {
         /** @var AbstractModel $model */
+        if (!isset(static::$resource_models[$api])) {
+            return null;
+        }
         $model = static::$resource_models[$api];
 
         return $model::$resource_name;
@@ -692,11 +771,10 @@ class Machship extends Client
     {
         if (array_key_exists($endpoint, static::$collections_endpoints)) {
             $this->api = $endpoint;
-        } else if (array_key_exists($endpoint, static::$cursored_enpoints)) {
+        } elseif (array_key_exists($endpoint, static::$cursored_enpoints)) {
             $this->api = $endpoint;
         }
-
-        $className = "Technauts\Machship\\Helpers\\".Util::studly($endpoint);
+        $className = "Technauts\Machship\\Helpers\\" . Util::studly($endpoint);
         if (class_exists($className)) {
             return new $className($this);
         }
@@ -735,7 +813,7 @@ class Machship extends Client
      */
     public static function fake($responseStack = [])
     {
-           // TODO implemention required fro MachshipMock($responseStack);
+        // TODO implemention required fro MachshipMock($responseStack);
     }
 
     /**

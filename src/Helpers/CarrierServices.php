@@ -3,7 +3,7 @@
 namespace Technauts\Machship\Helpers;
 
 /**
- * Class CarrierServices for a Warehouses.
+ * Class for CarrierServices Endpoint.
  */
 class Carrierservices extends Endpoint
 {

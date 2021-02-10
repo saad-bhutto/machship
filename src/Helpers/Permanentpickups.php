@@ -3,7 +3,7 @@
 namespace Technauts\Machship\Helpers;
 
 /**
- * Class Permanentpickups for a Warehouses.
+ * Class for Permanentpickups Endpoint.
  */
 class Permanentpickups extends Endpoint
 {

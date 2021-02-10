@@ -3,7 +3,7 @@
 namespace Technauts\Machship\Helpers;
 
 /**
- * Class Companies.
+ * Class for Companies Endpoint.
  */
 class Companies extends Endpoint
 {

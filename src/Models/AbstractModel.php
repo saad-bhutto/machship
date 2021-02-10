@@ -493,7 +493,7 @@ abstract class AbstractModel implements JsonSerializable, Serializable, ArrayAcc
             ? [static::$identifier => $this->original[static::$identifier]] + $this->getDirty()
             : $this->getDirty();
 
-        return [static::$resource_name => $payload];
+        return $payload;
     }
 
     /**
