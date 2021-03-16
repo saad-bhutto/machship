@@ -7,6 +7,7 @@ use BadMethodCallException;
 use Technauts\Machship\Models\Quote;
 use Technauts\Machship\Models\Route;
 use Psr\Http\Message\MessageInterface;
+use Technauts\Machship\Models\Carrier;
 use Technauts\Machship\Models\Company;
 use Technauts\Machship\Models\Product;
 use Psr\Http\Message\ResponseInterface;
@@ -15,9 +16,10 @@ use Technauts\Machship\Helpers\Endpoint;
 use Technauts\Machship\Models\Warehouse;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\GuzzleException;
+use Technauts\Machship\Models\Consignment;
 use Technauts\Machship\Models\Consignments;
 use Technauts\Machship\Models\AbstractModel;
-use Technauts\Machship\Models\Carrierservice;
+use Technauts\Machship\Models\CarrierService;
 use Technauts\Machship\Exceptions\ModelNotFoundException;
 use Technauts\Machship\Exceptions\InvalidOrMissingEndpointException;
 
@@ -90,11 +92,18 @@ class Machship extends Client
         'warehouses' => 'companyLocations/getAll',
         'locations' => 'locations/getAllLocations',
         'permanentpickups' => 'companyLocations/getPermanentPickupsForCompanyLocation',
-        'carrierservices' => 'api/carriers/GetAccessibleCarriers',
+        'carriers' => 'api/carriers/GetAccessibleCarriers',
         'routes' => 'routes/returnroutes',
         'consignments' => 'consignments/GetAll',
         'quotes' => 'quotes/GetAll',
         'products' => 'items/getAll',
+    ];
+
+    /** @var array $cursored_enpoints */
+    protected static $cursored_enpoints = [
+        'warehouses' => 'companyLocations/GetAll',
+        'consignments' => 'consignments/GetAll',
+        'carrierservices' => 'api/carrierservices/SearchAllServicesByCarrierId?retrieveSize=40&id=%s',
 
     ];
 
@@ -109,7 +118,6 @@ class Machship extends Client
         'quotes' => 'quotes/getQuote?id=%s',
         'consignments' => 'consignments/getConsignment?id=%s',
         'consignmentnotes' => 'notes/getNotesForConsignment?id=%s',
-
     ];
 
     /**
@@ -122,20 +130,14 @@ class Machship extends Client
         'quotes' => 'quotes/createQuote',
     ];
 
-    /** @var array $cursored_enpoints */
-    protected static $cursored_enpoints = [
-        'warehouses' => 'companyLocations/GetAll',
-        'products' => 'api/companyItems/GetAll',
-        'consignments' => 'consignments/GetAll',
-    ];
 
     /** @var array $resource_models */
     protected static $resource_models = [
         'companies' => Company::class,
         'warehouses' => Warehouse::class,
-        'carrierservices' => Carrierservice::class,
+        'carriers' => Carrier::class,
         'products' => Product::class,
-        'consignments' => Consignments::class,
+        'consignments' => Consignment::class,
         'quotes' => Quote::class,
         'routes' => Route::class,
         'locations' => Location::class,
@@ -213,15 +215,17 @@ class Machship extends Client
         $url = $this->uri($append);
         if (parse_url($url, PHP_URL_QUERY)) {
             $queryParam = parse_url($url, PHP_URL_QUERY);
-            if (substr($queryParam, 0, 3) === "id=") {
-                $query['id'] = explode("=", $queryParam)[1];
+            $id = Util::getIdFromURL($queryParam);
+            if (strlen($id) > 0) {
+                $query['id'] = $id;
             }
         }
+
 
         // Do request and store response in variable
         $response = $this->request(
             $method = 'GET',
-            $uri =  $url,
+            $uri = $url,
             $options = ['query' => $query]
         );
 
@@ -638,7 +642,6 @@ class Machship extends Client
      */
     private static function makeUri($api, $ids = [], $queue = [], $append = '', $base = 'apiv2', $method = null)
     {
-
         $mode = "collection";
         $api_endpoint = "";
         //0= V2 Endpoint
@@ -657,7 +660,6 @@ class Machship extends Client
         }
 
         if (isset(static::$findable_endpoints[$api])) {
-
             if (count($ids) == 1) {
                 // Is it a findable endpoint?
                 $api_endpoint = static::$findable_endpoints[$api];

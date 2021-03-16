@@ -15,7 +15,7 @@ class Product extends AbstractModel
 
 
     /** @var array $casts */
-    protected $casts =  [
+    protected $casts = [
         "itemType" =>  'integer',
         "typeString" => 'string',
         "name" => 'string',

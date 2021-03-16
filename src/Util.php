@@ -46,10 +46,10 @@ class Util
             return static::$snakeCache[$key][$delimiter];
         }
 
-        if (! ctype_lower($value)) {
+        if (!ctype_lower($value)) {
             $value = preg_replace('/\s+/u', '', $value);
 
-            $value = static::lower(preg_replace('/(.)(?=[A-Z])/u', '$1'.$delimiter, $value));
+            $value = static::lower(preg_replace('/(.)(?=[A-Z])/u', '$1' . $delimiter, $value));
         }
 
         return static::$snakeCache[$key][$delimiter] = $value;
@@ -112,7 +112,7 @@ class Util
     public static function flatten($array, $depth = INF)
     {
         return array_reduce($array, function ($result, $item) use ($depth) {
-            if (! is_array($item)) {
+            if (!is_array($item)) {
                 return array_merge($result, [$item]);
             } elseif ($depth === 1) {
                 return array_merge($result, array_values($item));
@@ -129,11 +129,10 @@ class Util
 
     public static function searchByValue($id, $array)
     {
-        foreach ($array as $key => $val) {
-            if ($val['id'] === $id) {
-                return $val;
-            }
-        }
+        $finding = array_search($id, array_column($array, 'id'));
+        if ($finding >= 0 && $finding !== false) {
+            return $array[$finding];
+        };
         return null;
     }
 
@@ -171,10 +170,32 @@ class Util
     }
 
     /**
- * @param string $url
- * @param $query string|array
- * @return string
- */
+     * Get Id From Url
+     *
+     * @param string $str
+     * @return string
+     */
+    public static function getIdFromURL(string $str = null)
+    {
+
+        $re = '/id=(\d*)/m';
+
+        preg_match_all($re, $str, $matches, PREG_SET_ORDER, 0);
+
+        if (count($matches) == 0 || !(isset($matches[0][1]) && is_numeric($matches[0][1]))) {
+            return '';
+        }
+
+        return $matches[0][1];
+    }
+
+
+
+    /**
+     * @param string $url
+     * @param $query string|array
+     * @return string
+     */
     public static function appendQueryStringToURL(string $url, $query): string
     {
         // the query is empty, return the original url straightaway
@@ -191,10 +212,10 @@ class Util
         $queryString = is_array($query) ? http_build_query($query) : $query;
 
         // check if there is already any query string in the URL
-        if (empty($parsedUrl['query'])) {
+        if (!empty($parsedUrl['query'])) {
             // remove duplications
             parse_str($queryString, $queryStringArray);
-            $url .= '?' . http_build_query($queryStringArray);
+            $url;
         } else {
             $queryString = $parsedUrl['query'] . '&' . $queryString;
 
